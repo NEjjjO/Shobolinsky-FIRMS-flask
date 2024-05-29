@@ -159,7 +159,7 @@ def home():
     if fire_data:
         logger.debug(f"Sample records: {fire_data[:5]}")
         total_incidents = len(fire_data)
-        most_affected_region = "North America"
+        most_affected_region = "Africa"
         latest_update = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         fire_data_europe = [

@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Homepage</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.1/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.1/dist/MarkerCluster.Default.css" />
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -119,6 +121,7 @@
         </div>
     </div>
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.1/dist/leaflet.markercluster.js"></script>
     <script>
         const mapCenter = [54.5260, 15.2551];
         const map = L.map('map').setView(mapCenter, 4);
@@ -126,6 +129,9 @@
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         }).addTo(map);
+
+        // Create a marker cluster group
+        const markers = L.markerClusterGroup();
 
         // Define custom icons
         const nasaIcon = L.icon({
@@ -159,17 +165,16 @@
             } else {
                 popupMessage += 'Reported by NASA.';
             }
-            console.log(`Creating marker at (${lat}, ${lon}) with icon: ${fire.source === 'user' ? 'userIcon' : 'nasaIcon'}`);
-            const marker = L.marker([lat, lon], { icon: icon }).addTo(map)
-                .bindPopup(popupMessage);
-            marker.on('click', function() {
-                marker.openPopup();
-            });
+            const marker = L.marker([lat, lon], { icon: icon }).bindPopup(popupMessage);
+            markers.addLayer(marker);  // Add marker to the cluster group
         }
 
         // Add markers to map
         const fireData = {{ fire_data | tojson }};
         fireData.forEach(fire => createMarker(fire));
+
+        // Add the marker cluster group to the map
+        map.addLayer(markers);
 
         document.getElementById('reportFireButton').addEventListener('click', function() {
             alert('Click on the map to report a fire location');
