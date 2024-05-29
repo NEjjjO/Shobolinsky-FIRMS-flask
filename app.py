@@ -1,15 +1,15 @@
+import logging
+from datetime import datetime, timedelta
+
+import folium
+import requests
 from flask import Flask, render_template, redirect, url_for, flash, request, jsonify
 from flask_login import LoginManager, UserMixin, login_required, login_user, logout_user, current_user
 from flask_wtf import FlaskForm
+from pymongo import MongoClient
+from werkzeug.security import generate_password_hash, check_password_hash
 from wtforms import StringField, PasswordField, SubmitField
 from wtforms.validators import InputRequired, Length, EqualTo
-from werkzeug.security import generate_password_hash, check_password_hash
-from pymongo import MongoClient
-import folium
-import requests
-from datetime import datetime, timedelta
-import logging
-import ssl
 from config import NASA_API_KEY, NASA_API_URL, MONGO_URL, SECRET_KEY
 
 app = Flask(__name__)
