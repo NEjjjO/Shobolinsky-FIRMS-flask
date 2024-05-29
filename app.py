@@ -234,10 +234,14 @@ def sitemap():
 @app.route('/report_fire', methods=['POST'])
 @login_required
 def report_fire():
+    logger.debug("Entering /report_fire endpoint.")
     try:
         data = request.get_json()
         latitude = data['latitude']
         longitude = data['longitude']
+
+        logger.debug(
+            f"Received fire report: Latitude {latitude}, Longitude {longitude}, Reported by user: {current_user.id}")
 
         # Check if the reported fire is within 10 km of any NASA-reported fire
         nearby_nasa_fire = fire_data_collection.find_one({
@@ -247,14 +251,16 @@ def report_fire():
         })
 
         verified = nearby_nasa_fire is not None
+        logger.debug(f"Is fire within 10 km of NASA-reported fire: {'Yes' if verified else 'No'}")
 
-        fire_data_collection.insert_one({
+        result = fire_data_collection.insert_one({
             'latitude': latitude,
             'longitude': longitude,
             'reported_by': current_user.id,
             'source': 'user',
             'verified': verified
         })
+        logger.debug(f"Fire reported successfully with document id: {result.inserted_id}")
 
         return jsonify({'message': 'Fire reported successfully'}), 200
     except Exception as e:

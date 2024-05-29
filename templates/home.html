@@ -28,10 +28,7 @@
             color: #0b3d91;
             text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
         }
-        p {
-            margin-bottom: 20px;
-            color: #333333;
-        }
+        p { margin-bottom: 20px; color: #333333; }
         .sidebar {
             background-color: #f4f4f4;
             padding: 20px;
@@ -53,12 +50,8 @@
         .sidebar a:hover {
             background-color: #eaeaea;
         }
-        .sidebar a:visited {
-            color: #6a0dad;
-        }
-        .facts {
-            margin-top: 40px;
-        }
+        .sidebar a:visited { color: #6a0dad; }
+        .facts { margin-top: 40px; }
         .fact {
             margin-bottom: 20px;
             padding: 10px;
@@ -67,13 +60,8 @@
             border-radius: 4px;
             box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.1);
         }
-        .fact h2 {
-            margin-top: 0;
-            color: #0b3d91;
-        }
-        .map-container {
-            margin-top: 20px;
-        }
+        .fact h2 { margin-top: 0; color: #0b3d91; }
+        .map-container { margin-top: 20px; }
         #map {
             width: 100%;
             height: 400px;
@@ -157,16 +145,20 @@
             const lat = fire.latitude;
             const lon = fire.longitude;
             let popupMessage = `Fire detected at ${lat}, ${lon}. `;
-            let icon = nasaIcon;  // Default icon for NASA-reported fires
+            let icon = nasaIcon; // Default icon for NASA-reported fires
             if (fire.source === 'user') {
                 popupMessage += 'Reported by a user. ';
                 popupMessage += fire.verified ? 'Verified by satellite.' : 'Not verified by satellite.';
-                icon = userIcon;  // Use user icon for user-reported fires
+                icon = userIcon; // Use user icon for user-reported fires
             } else {
                 popupMessage += 'Reported by NASA.';
             }
+            console.log(`Creating marker with popup: "${popupMessage}" at (${lat}, ${lon})`);
             const marker = L.marker([lat, lon], { icon: icon }).bindPopup(popupMessage);
-            markers.addLayer(marker);  // Add marker to the cluster group
+            marker.on('click', function() {
+                marker.openPopup();
+            });
+            markers.addLayer(marker); // Add marker to the cluster group
         }
 
         // Add markers to map
@@ -177,40 +169,41 @@
         map.addLayer(markers);
 
         document.getElementById('reportFireButton').addEventListener('click', function() {
-            alert('Click on the map to report a fire location');
-            map.on('click', function(e) {
+            alert('Click on the map to report a fire location.');
+
+            // Remove all existing click event listeners to avoid duplicates
+            map.off('click');
+
+            // Add a single click event listener
+            map.on('click', function onMapClick(e) {
                 const lat = e.latlng.lat;
                 const lon = e.latlng.lng;
                 if (confirm(`Do you want to report a fire at this location (${lat}, ${lon})?`)) {
+                    // Remove click listener after action to avoid multiple submissions
+                    map.off('click', onMapClick);
+
                     fetch('/report_fire', {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
+                        headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ latitude: lat, longitude: lon })
                     })
                     .then(response => response.json())
                     .then(data => {
                         if (data.message === 'Fire reported successfully') {
-                            alert('The placement will be verified shortly! Thank you for reporting');
-                            console.log(`User reported fire at (${lat}, ${lon})`);
-                            createMarker({
-                                latitude: lat,
-                                longitude: lon,
-                                source: 'user',
-                                verified: false
-                            });
+                            alert('The placement will be verified shortly! Thank you for reporting.');
+                            createMarker({ latitude: lat, longitude: lon, source: 'user', verified: false });
                         } else {
-                            alert('Failed to report fire');
+                            alert('Failed to report fire.');
                         }
                     })
                     .catch(error => {
                         console.error('Error reporting fire:', error);
-                        alert('An error occurred while reporting fire');
+                        alert('An error occurred while reporting fire.');
                     });
                 }
             });
         });
+
     </script>
 </body>
 </html>
