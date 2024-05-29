@@ -1,0 +1,3 @@
+# created by virtualenv automatically
+# ignore the config files containing the API keys
+/config.py
