@@ -10,18 +10,18 @@ import requests
 from datetime import datetime, timedelta
 import logging
 import ssl
+from config import NASA_API_KEY, NASA_API_URL, MONGO_URL, SECRET_KEY
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = "your_secret_key_here"
+app.config['SECRET_KEY'] = SECRET_KEY
 
-# Configure logging
+#logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
-# MongoDB connection setup
+# MongoDB connection
 try:
-    client = MongoClient("mongodb+srv://NEjjjO:fuckyou69@shoby0.bcrmqu3.mongodb.net/?retryWrites=true&w=majority",
-                         ssl=True)
+    client = MongoClient(MONGO_URL, ssl=True)
     db = client['FIRMS-recent']
     fire_data_collection = db['NASA']
     users_collection = db['users']
@@ -29,17 +29,13 @@ try:
 except Exception as e:
     logger.error(f"Failed to connect to MongoDB: {e}")
 
-# Login Manager setup
+# login manager
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = "login"
 
-# NASA API Configuration
-API_URL = "https://firms.modaps.eosdis.nasa.gov/api/area/csv"
-API_KEY = "0766fdd69804e90e9724d59ac79a6bf8"  # Change this to your NASA API key
 
-
-# User class for Flask Login
+# flask login for the user class
 class User(UserMixin):
     def __init__(self, username):
         self.id = username
@@ -53,14 +49,14 @@ def load_user(username):
     return None
 
 
-# Login Form
+# login form
 class LoginForm(FlaskForm):
     username = StringField('Username', validators=[InputRequired(), Length(min=4, max=20)])
     password = PasswordField('Password', validators=[InputRequired(), Length(min=8, max=128)])
     submit = SubmitField('Login')
 
 
-# Register Form
+# registration form
 class RegisterForm(FlaskForm):
     username = StringField('Username', validators=[InputRequired(), Length(min=4, max=20)])
     password = PasswordField('Password',
@@ -69,7 +65,7 @@ class RegisterForm(FlaskForm):
     submit = SubmitField('Register')
 
 
-# Registration route
+# registration page route
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     form = RegisterForm()
@@ -87,7 +83,7 @@ def register():
     return render_template('register.html', form=form)
 
 
-# Login route
+# logging in
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     form = LoginForm()
@@ -108,7 +104,7 @@ def login():
     return render_template('login.html', form=form)
 
 
-# Logout route
+# logging out
 @app.route('/logout')
 @login_required
 def logout():
@@ -116,7 +112,7 @@ def logout():
     return redirect(url_for('login'))
 
 
-# Function to fetch data from NASA API and update MongoDB
+# function to fetch data from nasa api and updtae mongo
 @app.route('/fetch_data')
 def fetch_data():
     params = {
@@ -125,9 +121,9 @@ def fetch_data():
         'date': (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d'),
         'geo': 'bbox',
         'bbox': '-180,-90,180,90',
-        'key': API_KEY
+        'key': NASA_API_KEY
     }
-    response = requests.get(API_URL, params=params)
+    response = requests.get(NASA_API_URL, params=params)
     if response.status_code == 200:
         try:
             data = response.json()
@@ -148,11 +144,13 @@ def fetch_data():
         return {'message': f"Failed to fetch data: {response.status_code}"}, 500
 
 
-# Homepage route
+# homepage
 @app.route('/')
 def home():
     try:
         fire_data = list(fire_data_collection.find())
+        for fire in fire_data:
+            fire['_id'] = str(fire['_id'])
         logger.info(f"Fetched {len(fire_data)} records from the database.")
     except Exception as e:
         logger.error(f"Error fetching fire data: {e}")
@@ -165,7 +163,12 @@ def home():
         latest_update = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         fire_data_europe = [
-            {"latitude": fire['latitude'], "longitude": fire['longitude']}
+            {
+                "latitude": fire['latitude'],
+                "longitude": fire['longitude'],
+                "source": fire.get('source', 'NASA'),
+                "verified": fire.get('verified', False)
+            }
             for fire in fire_data
             if -10 <= fire['longitude'] <= 40 and 35 <= fire['latitude'] <= 70
         ]
@@ -173,13 +176,21 @@ def home():
 
         map_center = [54.5260, 15.2551]  # Center of Europe
         fire_map = folium.Map(location=map_center, zoom_start=4)
+
         for fire in fire_data_europe:
+            popup_message = f"Fire detected at {fire['latitude']}, {fire['longitude']}. "
+            if fire['source'] == 'user':
+                popup_message += "Reported by a user. "
+                popup_message += "Verified by satellite." if fire['verified'] else "Not verified by satellite."
+            else:
+                popup_message += "Reported by NASA."
+
             folium.Marker(
                 location=[fire['latitude'], fire['longitude']],
-                popup=f"Fire detected at {fire['latitude']}, {fire['longitude']}"
+                popup=popup_message
             ).add_to(fire_map)
 
-        # Save the map to static directory
+        #saving the map statically
         fire_map.save('static/fire_map.html')
     else:
         total_incidents = 0
@@ -195,31 +206,31 @@ def home():
     )
 
 
-# Reporting guidelines page route
+# reporting guidelines page
 @app.route('/reporting_guidelines')
 def reporting_guidelines():
     return render_template('reporting_guidelines.html')
 
 
-# Safety guidelines page route
+# safety guidelines page
 @app.route('/safety_guidelines')
 def safety_guidelines():
     return render_template('safety_guidelines.html')
 
 
-# FAQ page route
+# FAQ page
 @app.route('/faq')
 def faq():
     return render_template('faq.html')
 
 
-# Sitemap page route
+# sitemap page
 @app.route('/sitemap')
 def sitemap():
     return render_template('sitemap.html')
 
 
-# Report fire page route
+# fire report page
 @app.route('/report_fire', methods=['POST'])
 @login_required
 def report_fire():
@@ -227,12 +238,28 @@ def report_fire():
         data = request.get_json()
         latitude = data['latitude']
         longitude = data['longitude']
-        fire_data_collection.insert_one({'latitude': latitude, 'longitude': longitude, 'reported_by': current_user.id})
+
+        # Check if the reported fire is within 10 km of any NASA-reported fire
+        nearby_nasa_fire = fire_data_collection.find_one({
+            'latitude': {'$gte': latitude - 0.1, '$lte': latitude + 0.1},
+            'longitude': {'$gte': longitude - 0.1, '$lte': longitude + 0.1},
+            'source': 'NASA'
+        })
+
+        verified = nearby_nasa_fire is not None
+
+        fire_data_collection.insert_one({
+            'latitude': latitude,
+            'longitude': longitude,
+            'reported_by': current_user.id,
+            'source': 'user',
+            'verified': verified
+        })
+
         return jsonify({'message': 'Fire reported successfully'}), 200
     except Exception as e:
         logger.error(f"Error reporting fire: {e}")
         return jsonify({'message': 'Failed to report fire'}), 500
-
 
 if __name__ == '__main__':
     app.run(debug=True)
